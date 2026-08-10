@@ -47,7 +47,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZGQTRDMDJBOEY4QTc0OApSV1JJcC9pb0FrejZEeWZnVEJ4MGVKbGUyclFMVFdCWlJKblFWYzljOGZkVFRNQWlQWUErVnBETwo=",
       "endpoints": [
-        "https://github.com/rajtejani/tauri-poc.git/releases/latest/download/latest.json"
+        "https://github.com/rajtejani/tauri-poc/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"
