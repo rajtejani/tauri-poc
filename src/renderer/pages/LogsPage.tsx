@@ -19,7 +19,7 @@ export function LogsPage() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-surface-card p-5 shadow-sm">
           <EventLog entries={logs} maxHeight="max-h-[calc(100vh-240px)]" />
         </div>
       </div>

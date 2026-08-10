@@ -7,9 +7,9 @@ import { Info, AlertTriangle, XCircle, CheckCircle2 } from 'lucide-react';
 const levelConfig = {
   info: {
     icon: Info,
-    class: 'text-blue-600',
-    bg: 'bg-blue-50',
-    dot: 'bg-blue-500',
+    class: 'text-primary',
+    bg: 'bg-primary-light',
+    dot: 'bg-primary',
   },
   warn: {
     icon: AlertTriangle,
@@ -25,9 +25,9 @@ const levelConfig = {
   },
   success: {
     icon: CheckCircle2,
-    class: 'text-emerald-600',
-    bg: 'bg-emerald-50',
-    dot: 'bg-emerald-500',
+    class: 'text-primary',
+    bg: 'bg-primary-light',
+    dot: 'bg-primary',
   },
 };
 
@@ -44,7 +44,7 @@ function LogRow({ entry }: LogRowProps) {
       <div className="flex-1 min-w-0">
         <p className="text-sm text-slate-700 leading-snug">{entry.message}</p>
         {entry.meta && Object.keys(entry.meta).length > 0 && (
-          <code className="inline-block text-[11px] text-slate-500 bg-slate-50 border border-slate-200/80 rounded px-1.5 py-0.5 mt-1 font-mono break-all max-w-full">
+          <code className="inline-block text-[11px] text-slate-500 bg-surface-muted border border-slate-200/80 rounded px-1.5 py-0.5 mt-1 font-mono break-all max-w-full">
             {JSON.stringify(entry.meta)}
           </code>
         )}

@@ -84,8 +84,8 @@ const TaskRow = memo(function TaskRow({ task }: { task: Task }) {
       className={cn(
         'group flex items-center gap-3 rounded-lg border px-4 py-2 transition-all duration-150',
         task.completed
-          ? 'border-slate-100 bg-slate-50/50'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+          ? 'border-slate-100 bg-surface-muted/60'
+          : 'border-slate-200 bg-surface-card hover:border-primary/30 hover:shadow-sm'
       )}
       style={{ height: ROW_HEIGHT - 8 }}
     >
@@ -94,8 +94,8 @@ const TaskRow = memo(function TaskRow({ task }: { task: Task }) {
         className={cn(
           'flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-150',
           task.completed
-            ? 'border-emerald-500 bg-emerald-500'
-            : 'border-slate-300 hover:border-emerald-500/60 bg-white'
+            ? 'border-primary bg-primary'
+            : 'border-slate-300 hover:border-primary/60 bg-surface-card'
         )}
         aria-label="Toggle task"
       >
@@ -113,7 +113,7 @@ const TaskRow = memo(function TaskRow({ task }: { task: Task }) {
               if (e.key === 'Escape') setEditing(false);
             }}
             placeholder="Title"
-            className="w-full bg-white rounded px-2 py-0.5 text-sm text-slate-800 outline-none border border-slate-200 focus:border-primary"
+            className="w-full bg-surface-card rounded px-2 py-0.5 text-sm text-slate-800 outline-none border border-slate-200 focus:border-primary"
           />
           <input
             value={editDescription}
@@ -123,7 +123,7 @@ const TaskRow = memo(function TaskRow({ task }: { task: Task }) {
               if (e.key === 'Escape') setEditing(false);
             }}
             placeholder="Description (optional)"
-            className="w-full bg-white rounded px-2 py-0.5 text-xs text-slate-600 outline-none border border-slate-200 focus:border-primary placeholder-slate-400"
+            className="w-full bg-surface-card rounded px-2 py-0.5 text-xs text-slate-600 outline-none border border-slate-200 focus:border-primary placeholder-slate-400"
           />
         </div>
       ) : (
@@ -153,7 +153,7 @@ const TaskRow = memo(function TaskRow({ task }: { task: Task }) {
         {!task.completed && !editing && (
           <button
             onClick={startEditing}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+            className="rounded p-1 text-slate-400 hover:bg-primary-light hover:text-primary transition-colors"
             aria-label="Edit task"
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -163,14 +163,14 @@ const TaskRow = memo(function TaskRow({ task }: { task: Task }) {
           <>
             <button
               onClick={handleSaveEdit}
-              className="rounded p-1 text-emerald-600 hover:bg-slate-100 transition-colors"
+              className="rounded p-1 text-primary hover:bg-primary-light transition-colors"
               aria-label="Save"
             >
               <Check className="h-3.5 w-3.5" />
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="rounded p-1 text-slate-400 hover:bg-slate-100 transition-colors"
+              className="rounded p-1 text-slate-400 hover:bg-primary-light hover:text-primary transition-colors"
               aria-label="Cancel"
             >
               <X className="h-3.5 w-3.5" />
@@ -294,7 +294,7 @@ export function TaskList() {
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             placeholder="What needs to be done?"
-            className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-primary/60 focus:bg-white"
+            className="w-full rounded-lg border border-slate-200 bg-surface-card px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-primary/60 focus:bg-surface-card"
           />
           <textarea
             value={newDescription}
@@ -304,7 +304,7 @@ export function TaskList() {
             }}
             placeholder="Add more detail (optional)"
             rows={2}
-            className="w-full resize-none rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-primary/60 focus:bg-white"
+            className="w-full resize-none rounded-lg border border-slate-200 bg-surface-card px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition-colors focus:border-primary/60 focus:bg-surface-card"
           />
         </div>
         <button

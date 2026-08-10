@@ -17,6 +17,7 @@ A **Tauri v2** desktop application built as a parity counterpart to the Electron
 - [IPC Bridge (Tauri Commands & Events)](#ipc-bridge-tauri-commands--events)
 - [LAN Sync Server API](#lan-sync-server-api)
 - [Socket.IO Events](#socketio-events)
+- [Auto Updates](#auto-updates)
 - [Environment & Configuration](#environment--configuration)
 - [Troubleshooting](#troubleshooting)
 
@@ -58,12 +59,16 @@ A **Tauri v2** desktop application built as a parity counterpart to the Electron
 | Lucide React | ^0.344.0 | Icon library |
 | `@tauri-apps/api` | ^2 | Tauri IPC bridge |
 | `@tauri-apps/plugin-opener` | ^2 | OS file/URL opener |
+| `@tauri-apps/plugin-updater` | ^2 | In-app update check / download / install |
+| `@tauri-apps/plugin-process` | ^2 | Relaunch after installing an update |
 
 ### Backend (Rust / Tauri Core)
 
 | Technology | Version | Role |
 |---|---|---|
 | Tauri | 2 | Desktop shell & native APIs |
+| tauri-plugin-updater | 2 | Signed auto-update plugin |
+| tauri-plugin-process | 2 | App relaunch after update |
 | rusqlite (bundled) | 0.32 | SQLite database |
 | axum | 0.7 | HTTP server for LAN sync |
 | socketioxide | 0.14 | Socket.IO server |
@@ -199,7 +204,9 @@ src-tauri/target/release/bundle/
 | `preview` | `vite preview` | Preview the production build |
 | `tauri` | `tauri` | Raw Tauri CLI passthrough |
 | `tauri:dev` | `tauri dev` | Full dev mode (frontend + desktop) |
-| `tauri:build` | `tauri build` | Full production build |
+| `tauri:build` | `node scripts/tauri-build.mjs` | Signed production build (updater artifacts) |
+| `updater:preview` | `VITE_PREVIEW_UPDATE_TOAST=true vite` | Preview the bottom-left update toast in the browser |
+| `updater:latest-json` | `node scripts/generate-latest-json.mjs` | Build `latest.json` from signed artifacts |
 | `typecheck` | `tsc --noEmit` | TypeScript type checking only |
 
 ---
@@ -217,6 +224,12 @@ POC-desktop-tauri/
 ├── tailwind.config.cjs           # Tailwind CSS configuration
 ├── postcss.config.cjs            # PostCSS config (autoprefixer)
 ├── .gitignore                    # Git ignore rules
+├── docs/
+│   └── AUTO_UPDATES.md           # How auto-update toast + releases work
+├── scripts/
+│   ├── tauri-build.mjs           # Signed tauri build wrapper
+│   └── generate-latest-json.mjs
+├── .github/workflows/release.yml # Tag-triggered multi-OS updater release
 │
 ├── public/                       # Static assets served as-is
 │
@@ -235,7 +248,8 @@ POC-desktop-tauri/
 │   │   │   ├── DeviceCard.tsx    # Connected device info card
 │   │   │   ├── EventLog.tsx      # Scrollable structured event log
 │   │   │   ├── StatCard.tsx      # Summary stat display card
-│   │   │   └── StatusBadge.tsx   # Online/offline/syncing badge
+│   │   │   ├── StatusBadge.tsx   # Online/offline/syncing badge
+│   │   │   └── UpdateToast.tsx   # Bottom-left “New update available” toast
 │   │   │
 │   │   ├── pages/                # Route-level page components
 │   │   │   ├── DashboardPage.tsx # Overview: stats, devices, recent logs
@@ -246,6 +260,7 @@ POC-desktop-tauri/
 │   │   │
 │   │   ├── hooks/                # Custom React hooks
 │   │   │   ├── useAppBootstrap.ts  # App init: loads tasks, listens to Tauri events
+│   │   │   ├── useAppUpdater.ts    # Check / download / install / relaunch
 │   │   │   └── useTasks.ts         # Task CRUD operations via tauriBridge
 │   │   │
 │   │   ├── store/                # Global state (Zustand)
@@ -420,6 +435,22 @@ Tasks use **Last-Write-Wins (LWW)** based on `updatedAt` timestamps. If two upda
 
 ---
 
+## Auto Updates
+
+The packaged app shows a Cursor-style **bottom-left** toast when a newer signed release is published. **Install Now** downloads the update and restarts the app. Users never update manually.
+
+Full release checklist (bump version → signed build → publish `latest.json` → toast appears):
+
+**[docs/AUTO_UPDATES.md](./docs/AUTO_UPDATES.md)**
+
+Quick preview of the toast UI (no release needed):
+
+```bash
+npm run updater:preview
+```
+
+---
+
 ## Environment & Configuration
 
 ### Tauri Configuration (`src-tauri/tauri.conf.json`)
@@ -432,6 +463,8 @@ Tasks use **Last-Write-Wins (LWW)** based on `updatedAt` timestamps. If two upda
 | `app.windows[0].width` | `2000` | Default window width |
 | `app.windows[0].backgroundColor` | `#0f172a` | Dark background |
 | `bundle.macOS.minimumSystemVersion` | `10.15` | macOS Catalina minimum |
+| `bundle.createUpdaterArtifacts` | `true` | Emit `.tar.gz` / `.sig` updater files |
+| `plugins.updater.endpoints` | GitHub `latest.json` | Where installed apps check for updates |
 
 ### Vite Configuration (`vite.config.ts`)
 
@@ -465,6 +498,9 @@ If you're running a locally built `.app`, macOS Gatekeeper may block it. Right-c
 ```bash
 xattr -rd com.apple.quarantine /path/to/OfflineFirstHub.app
 ```
+
+### Update toast never appears
+The running app version must be **lower** than `latest.json`, the endpoint URL in `tauri.conf.json` must be reachable, and artifacts must be signed with the same key as `plugins.updater.pubkey`. See [docs/AUTO_UPDATES.md](./docs/AUTO_UPDATES.md).
 
 ### `xcode-select` errors on macOS
 ```bash

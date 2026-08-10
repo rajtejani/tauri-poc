@@ -96,7 +96,7 @@ export function DashboardPage() {
         {/* Main content */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Tasks panel */}
-          <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-surface-card p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Activity className="h-4 w-4 text-primary" />
               <h2 className="text-sm font-semibold text-slate-800">Tasks</h2>
@@ -110,7 +110,7 @@ export function DashboardPage() {
           {/* Right column */}
           <div className="space-y-6">
             {/* Connected devices */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-surface-card p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <Monitor className="h-4 w-4 text-primary" />
                 <h2 className="text-sm font-semibold text-slate-800">Connected Devices</h2>
@@ -119,7 +119,7 @@ export function DashboardPage() {
             </div>
 
             {/* Event log */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-surface-card p-5 shadow-sm">
               <div className="flex items-center gap-2 mb-4">
                 <Activity className="h-4 w-4 text-primary" />
                 <h2 className="text-sm font-semibold text-slate-800">Recent Events</h2>

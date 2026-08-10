@@ -186,7 +186,7 @@ export function PrintersPage() {
           
           <div className="flex items-center gap-2">
             {success && (
-              <span className="flex items-center gap-1.5 rounded bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-semibold text-emerald-700 animate-fade-in transition-all">
+              <span className="flex items-center gap-1.5 rounded bg-primary-light border border-primary/25 px-3 py-1 text-xs font-semibold text-primary animate-fade-in transition-all">
                 <Check className="h-3.5 w-3.5" />
                 {success}
               </span>
@@ -201,7 +201,7 @@ export function PrintersPage() {
         </div>
 
         {/* LAN Scanner Card */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 space-y-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-surface-card p-6 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
@@ -234,7 +234,7 @@ export function PrintersPage() {
 
           {/* Scanned Results */}
           {scanning && (
-            <div className="flex items-center justify-center p-8 rounded-lg bg-slate-50 border border-slate-200">
+            <div className="flex items-center justify-center p-8 rounded-lg bg-surface-muted border border-slate-200">
               <div className="flex flex-col items-center gap-2 text-slate-500">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 <span className="text-sm font-medium">Scanning all local addresses (1-254)...</span>
@@ -252,10 +252,10 @@ export function PrintersPage() {
                 {scannedIps.map((ip) => (
                   <div
                     key={ip}
-                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 hover:border-primary/50 transition-colors"
+                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-surface-muted/50 px-4 py-3 hover:border-primary/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <div className="h-8 w-8 rounded bg-primary-light text-primary flex items-center justify-center">
                         <Wifi className="h-4.5 w-4.5" />
                       </div>
                       <div>
@@ -278,7 +278,7 @@ export function PrintersPage() {
           )}
 
           {!scanning && scannedIps.length === 0 && !loading && (
-            <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">
+            <div className="rounded-lg bg-surface-muted border border-slate-200 p-4 text-center">
               <span className="text-xs text-slate-400">
                 Subnet scanner ready. Make sure your printer is turned on and connected to the same Wi-Fi network.
               </span>
@@ -308,7 +308,7 @@ export function PrintersPage() {
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
           ) : printers.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-8 text-center text-slate-400">
+            <div className="rounded-xl border border-slate-200 bg-surface-muted/50 p-8 text-center text-slate-400">
               <Printer className="h-10 w-10 mx-auto text-slate-300 mb-3" />
               <p className="text-sm font-medium">No printers configured yet</p>
               <p className="text-xs text-slate-500 mt-1">Scan the subnet or click Add Manually to set up a new thermal printer.</p>
@@ -318,7 +318,7 @@ export function PrintersPage() {
               {printers.map((printer, index) => (
                 <div
                   key={index}
-                  className="rounded-xl border border-slate-200 bg-white p-5 space-y-4 hover:border-slate-300 shadow-sm transition-colors"
+                  className="rounded-xl border border-slate-200 bg-surface-card p-5 space-y-4 hover:border-primary/30 shadow-sm transition-colors"
                 >
                   <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
                     
@@ -332,7 +332,7 @@ export function PrintersPage() {
                           onChange={(e) => handleUpdateField(index, 'name', e.target.value)}
                           onBlur={handleFieldBlur}
                           placeholder="e.g. Kitchen"
-                          className="w-full text-sm rounded bg-white border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
+                          className="w-full text-sm rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
                         />
                       </div>
                       
@@ -344,7 +344,7 @@ export function PrintersPage() {
                           onChange={(e) => handleUpdateField(index, 'ip', e.target.value)}
                           onBlur={handleFieldBlur}
                           placeholder="e.g. 192.168.1.100"
-                          className="w-full text-sm font-mono rounded bg-white border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
+                          className="w-full text-sm font-mono rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
                         />
                       </div>
 
@@ -356,7 +356,7 @@ export function PrintersPage() {
                           onChange={(e) => handleUpdateField(index, 'port', e.target.value)}
                           onBlur={handleFieldBlur}
                           placeholder="9100"
-                          className="w-full text-sm font-mono rounded bg-white border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
+                          className="w-full text-sm font-mono rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
                         />
                       </div>
 
@@ -372,7 +372,7 @@ export function PrintersPage() {
                               ...printers.slice(index + 1),
                             ]);
                           }}
-                          className="w-full text-sm rounded bg-white border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
+                          className="w-full text-sm rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
                         >
                           <option value="58mm">58mm (2 ¼″)</option>
                           <option value="80mm">80mm (3 ⅛″)</option>
@@ -386,7 +386,7 @@ export function PrintersPage() {
                       <button
                         onClick={() => handleTestPrint(printer)}
                         disabled={printingIp !== null}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 transition-all border border-emerald-200"
+                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded bg-primary-light text-primary hover:bg-primary/15 disabled:opacity-50 transition-all border border-primary/25"
                       >
                         {printingIp === printer.ip ? (
                           <>
@@ -403,7 +403,7 @@ export function PrintersPage() {
 
                       <button
                         onClick={() => handleRemovePrinter(index)}
-                        className="p-2 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 rounded border border-slate-200 hover:border-rose-200 transition-all"
+                        className="p-2 text-slate-400 hover:text-rose-600 bg-surface-muted hover:bg-rose-50 rounded border border-slate-200 hover:border-rose-200 transition-all"
                         title="Remove setup"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -418,7 +418,7 @@ export function PrintersPage() {
         </div>
 
         {/* Helper info */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-5 space-y-3">
+        <div className="rounded-xl border border-slate-200 bg-surface-muted/50 p-5 space-y-3">
           <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
             <HelpCircle className="h-4 w-4 text-primary" />
             Thermal Printing Subnet Info
@@ -428,15 +428,15 @@ export function PrintersPage() {
             By scanning, the app connects to each IP address on your LAN subnet (e.g. 192.168.1.1 through 192.168.1.254) to see if port 9100 responds.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-slate-500 pt-1">
-            <div className="border border-slate-200 rounded p-2.5 bg-white">
+            <div className="border border-slate-200 rounded p-2.5 bg-surface-card">
               <span className="font-bold text-slate-800 block mb-0.5">58mm Presets</span>
               Used on handheld cards or small mobile receipt engines. Layout wraps to 32 characters.
             </div>
-            <div className="border border-slate-200 rounded p-2.5 bg-white">
+            <div className="border border-slate-200 rounded p-2.5 bg-surface-card">
               <span className="font-bold text-slate-800 block mb-0.5">80mm Presets</span>
               Industry standard desktop billing/restaurant receipt size. Layout wraps to 48 characters.
             </div>
-            <div className="border border-slate-200 rounded p-2.5 bg-white">
+            <div className="border border-slate-200 rounded p-2.5 bg-surface-card">
               <span className="font-bold text-slate-800 block mb-0.5">110mm Presets</span>
               Wide labels or medical print hardware layout. Wraps to 64 characters.
             </div>

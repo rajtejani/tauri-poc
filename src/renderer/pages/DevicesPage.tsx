@@ -19,13 +19,13 @@ export function DevicesPage() {
               {connectedDevices.length} device{connectedDevices.length !== 1 ? 's' : ''} connected via LAN
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
-            <Wifi className="h-3.5 w-3.5 text-emerald-600" />
+          <div className="flex items-center gap-2 rounded-lg border border-primary/25 bg-primary-light px-3 py-1.5 text-primary">
+            <Wifi className="h-3.5 w-3.5 text-primary" />
             <span className="text-xs font-semibold">LAN Active</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-surface-card p-5 shadow-sm">
           <DeviceList devices={connectedDevices} emptyLabel="Waiting for devices to connect..." />
         </div>
 
@@ -40,13 +40,13 @@ function ConnectionInfo() {
   const { serverIp, serverPort } = useAppStore();
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+    <div className="rounded-xl border border-slate-200 bg-surface-card p-5 shadow-sm space-y-3">
       <h2 className="text-sm font-semibold text-slate-800">Client Connection Info</h2>
       <p className="text-xs text-slate-500">
         Other devices connect to this hub using Socket.IO on the following address:
       </p>
-      <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3">
-        <code className="text-sm text-emerald-700 font-mono">
+      <div className="rounded-lg bg-surface-muted border border-slate-200 px-4 py-3">
+        <code className="text-sm text-primary font-mono">
           http://{serverIp}:{serverPort}
         </code>
       </div>

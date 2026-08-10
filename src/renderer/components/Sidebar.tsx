@@ -25,10 +25,10 @@ export function Sidebar() {
   const { serverRunning, serverIp, serverPort, connectedDevices } = useAppStore();
 
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-slate-200 bg-surface-card">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-5 border-b border-slate-100">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-surface-card">
           <Layers className="h-5 w-5" />
         </div>
         <div>
@@ -39,7 +39,7 @@ export function Sidebar() {
 
       {/* Status pill */}
       <div className="px-4 py-3 border-b border-slate-200">
-        <div className="rounded-lg bg-slate-50 px-3 py-2.5 space-y-1.5 border border-slate-100">
+        <div className="rounded-lg bg-surface-muted px-3 py-2.5 space-y-1.5 border border-slate-100">
           <div className="flex items-center justify-between">
             <span className="text-xs text-slate-500">Server</span>
             <StatusBadge active={serverRunning} size="sm" />
@@ -72,8 +72,8 @@ export function Sidebar() {
               cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 isActive
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-primary-light text-primary'
+                  : 'text-slate-600 hover:bg-surface-muted hover:text-slate-900'
               )
             }
           >

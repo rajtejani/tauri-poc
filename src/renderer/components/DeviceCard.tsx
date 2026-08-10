@@ -18,12 +18,12 @@ interface DeviceCardProps {
 export function DeviceCard({ device }: DeviceCardProps) {
   const Icon = deviceIcons[device.type] ?? HelpCircle;
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm transition-all px-4 py-3">
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-surface-card hover:border-primary/30 hover:shadow-sm transition-all px-4 py-3">
       <div
         className={cn(
           'rounded-lg p-2',
           device.connected
-            ? 'bg-emerald-50 text-emerald-600'
+            ? 'bg-primary-light text-primary'
             : 'bg-slate-100 text-slate-400'
         )}
       >
@@ -35,7 +35,7 @@ export function DeviceCard({ device }: DeviceCardProps) {
       </div>
       <div className="flex items-center gap-2">
         {device.connected && (
-          <Wifi className="h-3.5 w-3.5 text-emerald-600" />
+          <Wifi className="h-3.5 w-3.5 text-primary" />
         )}
         <span className="text-xs text-slate-400">
           {formatTimestamp(device.lastSeen)}

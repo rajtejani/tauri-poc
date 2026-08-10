@@ -17,7 +17,7 @@
         "height": 1000,
         "minWidth": 900,
         "minHeight": 600,
-        "backgroundColor": "#0f172a",
+        "backgroundColor": "#F5F2EB",
         "titleBarStyle": "Overlay"
       }
     ],
@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "category": "Productivity",
     "shortDescription": "Offline-first LAN sync hub (Tauri)",
     "longDescription": "Parity build of Offline First Hub for Electron vs Tauri performance comparison.",
@@ -40,6 +41,17 @@
     ],
     "macOS": {
       "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZGQTRDMDJBOEY4QTc0OApSV1JJcC9pb0FrejZEeWZnVEJ4MGVKbGUyclFMVFdCWlJKblFWYzljOGZkVFRNQWlQWUErVnBETwo=",
+      "endpoints": [
+        "https://github.com/rajtejani/tauri-poc.git/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

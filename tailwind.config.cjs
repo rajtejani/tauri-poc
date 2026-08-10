@@ -12,13 +12,28 @@ export default {
       },
       colors: {
         slate: {
-          925: '#0d1424',
-          950: '#020617',
+          50: '#F5F2EB',
+          100: '#EBE7DE',
+          200: '#DDD8CC',
+          300: '#C8C1B3',
+          400: '#8A968F',
+          500: '#5D6F66',
+          600: '#4A5C53',
+          700: '#334840',
+          800: '#24362E',
+          900: '#15231C',
+          925: '#101A15',
+          950: '#0A120E',
         },
         primary: {
-          DEFAULT: '#C52031',
-          hover: '#a81b29',
-          light: '#fdf2f3',
+          DEFAULT: '#0F4D38',
+          hover: '#0B3D2C',
+          light: '#E7EFE9',
+        },
+        surface: {
+          DEFAULT: '#F5F2EB',
+          card: '#FFFEFA',
+          muted: '#EBE7DE',
         },
       },
       animation: {

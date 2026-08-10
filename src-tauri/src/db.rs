@@ -320,7 +320,7 @@ pub fn create_task(
     }
     logger.info(
         "DB write: create task",
-        Some(serde_json::json!({ "id": task.id, "title": task.title })),
+        Some(serde_json::json!({ "id": task.id, "title": task.title, "device_id": task.device_id })),
     );
     Ok(task)
 }
@@ -357,7 +357,7 @@ pub fn update_task(
     replace_task(&conn, &task, false)?;
     logger.info(
         "DB write: update task",
-        Some(serde_json::json!({ "id": id })),
+        Some(serde_json::json!({ "id": id, "title": task.title, "device_id": task.device_id })),
     );
     Ok(Some(task))
 }

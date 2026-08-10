@@ -13,17 +13,17 @@ interface StatCardProps {
 }
 
 const accentMap = {
-  emerald: 'from-emerald-50 to-emerald-50/20 border-emerald-100 bg-white',
-  blue: 'from-rose-50 to-rose-50/20 border-rose-100 bg-white',
-  amber: 'from-amber-50 to-amber-50/20 border-amber-100 bg-white',
-  rose: 'from-rose-50 to-rose-50/20 border-rose-100 bg-white',
-  slate: 'from-slate-50 to-slate-50/20 border-slate-200 bg-white',
+  emerald: 'from-primary-light to-surface-card border-primary/20 bg-surface-card',
+  blue: 'from-primary-light/70 to-surface-card border-primary/15 bg-surface-card',
+  amber: 'from-amber-50 to-surface-card border-amber-100 bg-surface-card',
+  rose: 'from-rose-50 to-surface-card border-rose-100 bg-surface-card',
+  slate: 'from-slate-50 to-surface-card border-slate-200 bg-surface-card',
 };
 
 const iconBgMap = {
-  emerald: 'bg-emerald-50 text-emerald-600',
+  emerald: 'bg-primary-light text-primary',
   blue: 'bg-primary/10 text-primary',
-  amber: 'bg-amber-50 text-amber-600',
+  amber: 'bg-amber-50 text-amber-700',
   rose: 'bg-rose-50 text-rose-600',
   slate: 'bg-slate-100 text-slate-600',
 };
@@ -40,7 +40,7 @@ export function StatCard({
     <div
       className={cn(
         'relative rounded-xl border bg-gradient-to-br p-5 transition-all duration-200',
-        'hover:shadow-md hover:shadow-slate-200/50 hover:-translate-y-0.5',
+        'hover:shadow-md hover:shadow-primary/10 hover:-translate-y-0.5',
         accentMap[accent]
       )}
     >

@@ -7,12 +7,13 @@ import { DevicesPage } from './renderer/pages/DevicesPage';
 import { LogsPage } from './renderer/pages/LogsPage';
 import { PrintersPage } from './renderer/pages/PrintersPage';
 import { useAppBootstrap } from './renderer/hooks/useAppBootstrap';
+import { UpdateToast } from './renderer/components/UpdateToast';
 
 function AppLayout() {
   useAppBootstrap();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-800">
+    <div className="flex h-screen overflow-hidden bg-surface text-slate-800">
       <Sidebar />
       <main className="flex flex-1 flex-col overflow-hidden">
         <Routes>
@@ -23,6 +24,7 @@ function AppLayout() {
           <Route path="/logs" element={<LogsPage />} />
         </Routes>
       </main>
+      <UpdateToast />
     </div>
   );
 }

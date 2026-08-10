@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
 
+interface ImportMetaEnv {
+  readonly VITE_PREVIEW_UPDATE_TOAST?: string;
+}
+
 import type {
   AppStatus,
   CreateTaskInput,
