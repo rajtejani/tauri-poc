@@ -1,5 +1,6 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
@@ -14,6 +15,24 @@ pub struct PrinterConfig {
     pub ip: String,
     pub port: u16,
     pub width: String, // "58mm" | "80mm" | "110mm"
+    /// "network" (default) or "usb"
+    #[serde(default = "default_connection_type")]
+    pub connection_type: String,
+    /// Windows USB port (e.g. USB001) or CUPS device URI on macOS/Linux
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usb_port_name: Option<String>,
+}
+
+fn default_connection_type() -> String {
+    "network".to_string()
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsbPrinterInfo {
+    pub name: String,
+    pub port_name: String,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -59,6 +78,138 @@ pub async fn scan_local_printers() -> Result<Vec<String>, String> {
     }
 
     Ok(found_ips)
+}
+
+/// Discover printers that are directly attached via USB (OS print queue).
+/// Windows uses `Get-Printer` and keeps only `PortName` values like `USB001`.
+/// macOS/Linux use CUPS (`lpstat -v`) and keep `usb://` device URIs.
+pub fn discover_usb_printers() -> Result<Vec<UsbPrinterInfo>, String> {
+    #[cfg(target_os = "windows")]
+    {
+        return discover_usb_printers_windows();
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        return discover_usb_printers_cups();
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        Err("USB printer discovery is not supported on this platform".to_string())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn discover_usb_printers_windows() -> Result<Vec<UsbPrinterInfo>, String> {
+    // Force an array even when a single printer is installed, then filter USB ports.
+    let script = r#"
+$ErrorActionPreference = 'Stop'
+$printers = @(Get-Printer | Where-Object { $_.PortName -like 'USB*' } | Select-Object Name, PrinterStatus, PortName)
+$printers | ConvertTo-Json -Compress
+"#;
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .output()
+        .map_err(|e| format!("Failed to run PowerShell: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if stdout.is_empty() || stdout == "null" {
+        return Ok(Vec::new());
+    }
+
+    let value: serde_json::Value = serde_json::from_str(&stdout)
+        .map_err(|e| format!("Failed to parse Get-Printer JSON: {e}"))?;
+
+    let items = match value {
+        serde_json::Value::Array(arr) => arr,
+        obj @ serde_json::Value::Object(_) => vec![obj],
+        _ => return Ok(Vec::new()),
+    };
+
+    let mut printers = Vec::new();
+    for item in items {
+        let name = item
+            .get("Name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown Printer")
+            .to_string();
+        let port_name = item
+            .get("PortName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let status = item
+            .get("PrinterStatus")
+            .map(|v| match v {
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            })
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        if !port_name.to_ascii_uppercase().starts_with("USB") {
+            continue;
+        }
+
+        printers.push(UsbPrinterInfo {
+            name,
+            port_name,
+            status,
+        });
+    }
+
+    Ok(printers)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn discover_usb_printers_cups() -> Result<Vec<UsbPrinterInfo>, String> {
+    let output = Command::new("lpstat")
+        .args(["-v"])
+        .output()
+        .map_err(|e| format!("Failed to run lpstat: {e}"))?;
+
+    // lpstat returns non-zero when no printers are configured; treat that as empty.
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    if stdout.trim().is_empty() {
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if !stderr.is_empty() {
+                return Err(stderr);
+            }
+        }
+        return Ok(Vec::new());
+    }
+
+    let mut printers = Vec::new();
+    for line in stdout.lines() {
+        // Example: device for HP_LaserJet_Pro: usb://HP/LaserJet%20Pro?serial=ABC
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("device for ") else {
+            continue;
+        };
+        let Some((name, uri)) = rest.split_once(':') else {
+            continue;
+        };
+        let uri = uri.trim();
+        if !uri.to_ascii_lowercase().starts_with("usb://") {
+            continue;
+        }
+
+        // Keep the exact CUPS queue name (underscores matter for `lp -d`).
+        printers.push(UsbPrinterInfo {
+            name: name.trim().to_string(),
+            port_name: uri.to_string(),
+            status: "Ready".to_string(),
+        });
+    }
+
+    Ok(printers)
 }
 
 /// Helper to get path of the printers config file
@@ -122,13 +273,8 @@ fn format_line(left: &str, right: &str, line_width: usize) -> String {
     }
 }
 
-/// Print formatted receipt to specified printer IP and Port using ESC/POS commands
-pub async fn print_escpos_receipt(ip: &str, port: u16, width: &str) -> Result<(), String> {
-    let addr: SocketAddr = format!("{ip}:{port}")
-        .parse()
-        .map_err(|e| format!("Invalid printer address '{ip}:{port}': {e}"))?;
-
-    // Determine line width character limit based on page width
+/// Build the same ESC/POS receipt bytes used for LAN and USB printing.
+fn build_escpos_receipt_bytes(width: &str) -> Vec<u8> {
     let line_width = match width {
         "58mm" => 32,
         "110mm" => 64,
@@ -156,35 +302,29 @@ pub async fn print_escpos_receipt(ip: &str, port: u16, width: &str) -> Result<()
     // 4. Align Left: ESC a 0
     buf.extend_from_slice(b"\x1ba\x00");
 
-    // Order Details Header
     let now = chrono::Local::now().format("%Y-%m-%d %H:%M").to_string();
-    
-    // We can lay out metadata dynamically according to width
+
     if line_width >= 48 {
         buf.extend_from_slice(format_line("Order: #8792", "Table: 14", line_width).as_bytes());
         buf.extend_from_slice(b"\n");
         buf.extend_from_slice(format_line(&format!("Date: {now}"), "Guests: 3", line_width).as_bytes());
         buf.extend_from_slice(b"\n");
-        buf.extend_from_slice(format!("Server: Jessica (Active Host)\n").as_bytes());
+        buf.extend_from_slice(b"Server: Jessica (Active Host)\n");
     } else {
-        // Narrow page (58mm)
-        buf.extend_from_slice(format!("Order: #8792      Table: 14\n").as_bytes());
-        buf.extend_from_slice(format!("Date: {}\n", now).as_bytes());
-        buf.extend_from_slice(format!("Server: Jessica   Guests: 3\n").as_bytes());
+        buf.extend_from_slice(b"Order: #8792      Table: 14\n");
+        buf.extend_from_slice(format!("Date: {now}\n").as_bytes());
+        buf.extend_from_slice(b"Server: Jessica   Guests: 3\n");
     }
 
-    // Divider line
     let divider = "=".repeat(line_width) + "\n";
     buf.extend_from_slice(divider.as_bytes());
 
-    // Table Header
     buf.extend_from_slice(format_line("Item Description", "Amount", line_width).as_bytes());
     buf.extend_from_slice(b"\n");
-    
+
     let sub_divider = "-".repeat(line_width) + "\n";
     buf.extend_from_slice(sub_divider.as_bytes());
 
-    // Restaurant Items
     buf.extend_from_slice(format_line("1x Large Pepperoni Pizza", "300.00", line_width).as_bytes());
     buf.extend_from_slice(b"\n");
     buf.extend_from_slice(format_line("1x Garlic Bread Crust", "230.00", line_width).as_bytes());
@@ -193,46 +333,274 @@ pub async fn print_escpos_receipt(ip: &str, port: u16, width: &str) -> Result<()
     buf.extend_from_slice(b"\n");
     buf.extend_from_slice(format_line("1x Classic Tiramisu Dessert", "400.00", line_width).as_bytes());
     buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("1x Margherita Pizza", "280.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("2x Caesar Salad", "460.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("1x French Fries", "150.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("2x Iced Tea", "250.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("1x Chocolate Brownie", "230.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("1x Cheese Nachos", "275.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("1x Fresh Lemonade", "300.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
+    buf.extend_from_slice(format_line("1x Strawberry Milkshake", "350.00", line_width).as_bytes());
+    buf.extend_from_slice(b"\n");
 
     buf.extend_from_slice(sub_divider.as_bytes());
 
-    // Totals
-    buf.extend_from_slice(format_line("Subtotal", "1530.00", line_width).as_bytes());
+    buf.extend_from_slice(format_line("Subtotal", "3825.00", line_width).as_bytes());
     buf.extend_from_slice(b"\n");
-    buf.extend_from_slice(format_line("Tax (8.25%)", "150.00", line_width).as_bytes());
+    buf.extend_from_slice(format_line("Tax (8.25%)", "315.00", line_width).as_bytes());
     buf.extend_from_slice(b"\n");
-    
-    // Total (Bold: ESC E 1)
+
     buf.extend_from_slice(b"\x1bE\x01");
-    buf.extend_from_slice(format_line("Total Due", "1680.00", line_width).as_bytes());
+    buf.extend_from_slice(format_line("Total Due", "4140.00", line_width).as_bytes());
     buf.extend_from_slice(b"\n");
     buf.extend_from_slice(b"\x1bE\x00");
 
     buf.extend_from_slice(divider.as_bytes());
 
-    // 5. Center align: ESC a 1
     buf.extend_from_slice(b"\x1ba\x01");
     buf.extend_from_slice(b"Thank you for dining with us!\n");
     buf.extend_from_slice(b"Please pay at the front counter.\n");
     buf.extend_from_slice(b"==============================\n");
 
-    // 6. Feed and cut paper: ESC d 4 (feed 4 lines) + GS V 66 0 (cut)
+    // Feed + partial cut
     buf.extend_from_slice(b"\n\n\n\n\x1dVB\x00");
 
-    // Connect to printer socket
+    buf
+}
+
+/// Print receipt over LAN (raw TCP to port 9100) or USB (OS print queue / RAW).
+pub async fn print_escpos_receipt(
+    width: &str,
+    connection_type: &str,
+    ip: Option<&str>,
+    port: Option<u16>,
+    printer_name: Option<&str>,
+) -> Result<(), String> {
+    let buf = build_escpos_receipt_bytes(width);
+
+    if connection_type.eq_ignore_ascii_case("usb") {
+        let name = printer_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "USB printer name is required for printing".to_string())?;
+        return send_raw_to_usb_printer(name, &buf).await;
+    }
+
+    let ip = ip
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "Printer IP is required for network printing".to_string())?;
+    let port = port.unwrap_or(9100);
+    send_raw_to_network_printer(ip, port, &buf).await
+}
+
+async fn send_raw_to_network_printer(ip: &str, port: u16, buf: &[u8]) -> Result<(), String> {
+    let addr: SocketAddr = format!("{ip}:{port}")
+        .parse()
+        .map_err(|e| format!("Invalid printer address '{ip}:{port}': {e}"))?;
+
     let mut stream = timeout(Duration::from_secs(5), TcpStream::connect(addr))
         .await
         .map_err(|_| format!("Connection to printer {ip}:{port} timed out"))?
         .map_err(|e| format!("Failed to connect to printer: {e}"))?;
 
-    // Write buffer to stream
-    stream.write_all(&buf)
+    stream
+        .write_all(buf)
         .await
         .map_err(|e| format!("Failed to send print bytes: {e}"))?;
 
-    stream.flush()
+    stream
+        .flush()
         .await
         .map_err(|e| format!("Failed to flush printer stream: {e}"))?;
+
+    Ok(())
+}
+
+/// Send raw ESC/POS bytes to an OS-installed USB printer (Windows spooler / CUPS).
+async fn send_raw_to_usb_printer(printer_name: &str, buf: &[u8]) -> Result<(), String> {
+    let printer_name = printer_name.to_string();
+    let buf = buf.to_vec();
+    tokio::task::spawn_blocking(move || send_raw_to_usb_printer_blocking(&printer_name, &buf))
+        .await
+        .map_err(|e| format!("USB print task failed: {e}"))?
+}
+
+fn send_raw_to_usb_printer_blocking(printer_name: &str, buf: &[u8]) -> Result<(), String> {
+    let tmp_path = std::env::temp_dir().join(format!(
+        "poc-receipt-{}.bin",
+        uuid::Uuid::new_v4()
+    ));
+
+    std::fs::write(&tmp_path, buf)
+        .map_err(|e| format!("Failed to write temp receipt file: {e}"))?;
+
+    let result = {
+        #[cfg(target_os = "windows")]
+        {
+            send_raw_windows(printer_name, &tmp_path)
+        }
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        {
+            send_raw_cups(printer_name, &tmp_path)
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            Err("USB printing is not supported on this platform".to_string())
+        }
+    };
+
+    let _ = std::fs::remove_file(&tmp_path);
+    result
+}
+
+#[cfg(target_os = "windows")]
+fn send_raw_windows(printer_name: &str, file_path: &std::path::Path) -> Result<(), String> {
+    // Win32 RAW print via PowerShell (same receipt bytes as LAN TCP 9100).
+    let path_str = file_path
+        .to_str()
+        .ok_or_else(|| "Temp receipt path is not valid UTF-8".to_string())?;
+
+    // Escape single quotes for PowerShell single-quoted strings.
+    let safe_name = printer_name.replace('\'', "''");
+    let safe_path = path_str.replace('\'', "''");
+
+    let script = format!(
+        r#"
+$ErrorActionPreference = 'Stop'
+$printerName = '{safe_name}'
+$filePath = '{safe_path}'
+
+Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+
+public class RawPrinterHelper {{
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+  public class DOCINFOA {{
+    [MarshalAs(UnmanagedType.LPStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPStr)] public string pDataType;
+  }}
+
+  [DllImport("winspool.Drv", EntryPoint = "OpenPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool OpenPrinter([MarshalAs(UnmanagedType.LPStr)] string szPrinter, out IntPtr hPrinter, IntPtr pd);
+
+  [DllImport("winspool.Drv", EntryPoint = "ClosePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool ClosePrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint = "StartDocPrinterA", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool StartDocPrinter(IntPtr hPrinter, Int32 level, [In, MarshalAs(UnmanagedType.LPStruct)] DOCINFOA di);
+
+  [DllImport("winspool.Drv", EntryPoint = "EndDocPrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool EndDocPrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint = "StartPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool StartPagePrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint = "EndPagePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool EndPagePrinter(IntPtr hPrinter);
+
+  [DllImport("winspool.Drv", EntryPoint = "WritePrinter", SetLastError = true, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+  public static extern bool WritePrinter(IntPtr hPrinter, IntPtr pBytes, Int32 dwCount, out Int32 dwWritten);
+
+  public static void SendBytes(string printerName, byte[] bytes) {{
+    IntPtr hPrinter;
+    if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero)) {{
+      throw new Exception("OpenPrinter failed for '" + printerName + "' (Win32=" + Marshal.GetLastWin32Error() + ")");
+    }}
+    try {{
+      DOCINFOA di = new DOCINFOA();
+      di.pDocName = "POC Receipt";
+      di.pDataType = "RAW";
+      if (!StartDocPrinter(hPrinter, 1, di)) {{
+        throw new Exception("StartDocPrinter failed (Win32=" + Marshal.GetLastWin32Error() + ")");
+      }}
+      try {{
+        if (!StartPagePrinter(hPrinter)) {{
+          throw new Exception("StartPagePrinter failed (Win32=" + Marshal.GetLastWin32Error() + ")");
+        }}
+        try {{
+          IntPtr pUnmanagedBytes = Marshal.AllocCoTaskMem(bytes.Length);
+          try {{
+            Marshal.Copy(bytes, 0, pUnmanagedBytes, bytes.Length);
+            int written;
+            if (!WritePrinter(hPrinter, pUnmanagedBytes, bytes.Length, out written)) {{
+              throw new Exception("WritePrinter failed (Win32=" + Marshal.GetLastWin32Error() + ")");
+            }}
+          }} finally {{
+            Marshal.FreeCoTaskMem(pUnmanagedBytes);
+          }}
+        }} finally {{
+          EndPagePrinter(hPrinter);
+        }}
+      }} finally {{
+        EndDocPrinter(hPrinter);
+      }}
+    }} finally {{
+      ClosePrinter(hPrinter);
+    }}
+  }}
+}}
+"@
+
+$bytes = [System.IO.File]::ReadAllBytes($filePath)
+[RawPrinterHelper]::SendBytes($printerName, $bytes)
+"#,
+        safe_name = safe_name,
+        safe_path = safe_path
+    );
+
+    let output = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .map_err(|e| format!("Failed to run PowerShell raw print: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(if detail.is_empty() {
+            "Windows RAW print failed".to_string()
+        } else {
+            detail
+        });
+    }
+
+    Ok(())
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn send_raw_cups(printer_name: &str, file_path: &std::path::Path) -> Result<(), String> {
+    let output = Command::new("lp")
+        .args([
+            "-d",
+            printer_name,
+            "-o",
+            "raw",
+            file_path
+                .to_str()
+                .ok_or_else(|| "Temp receipt path is not valid UTF-8".to_string())?,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run lp: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("CUPS lp failed for printer '{printer_name}'")
+        } else {
+            stderr
+        });
+    }
 
     Ok(())
 }

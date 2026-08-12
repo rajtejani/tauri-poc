@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-useAppStore;
 import {
   Printer,
   Search,
@@ -7,12 +6,13 @@ import {
   Trash2,
   Loader2,
   Wifi,
+  Usb,
   Check,
   AlertCircle,
   HelpCircle,
   Play,
 } from 'lucide-react';
-import type { PrinterConfig } from '../../shared/types';
+import type { PrinterConfig, UsbPrinterInfo } from '../../shared/types';
 import { useAppStore } from '../store/appStore';
 
 // Access window.electronAPI safely
@@ -24,10 +24,12 @@ export function PrintersPage() {
   const [printers, setPrinters] = useState<PrinterConfig[]>([]);
   const [scanning, setScanning] = useState(false);
   const [scannedIps, setScannedIps] = useState<string[]>([]);
+  const [scanningUsb, setScanningUsb] = useState(false);
+  const [usbPrinters, setUsbPrinters] = useState<UsbPrinterInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [printingIp, setPrintingIp] = useState<string | null>(null);
+  const [printingKey, setPrintingKey] = useState<string | null>(null);
   
   const { addLogEntry, serverIp } = useAppStore();
 
@@ -92,6 +94,31 @@ export function PrintersPage() {
     }
   };
 
+  const handleUsbScan = async () => {
+    if (scanningUsb) return;
+    setScanningUsb(true);
+    setError(null);
+    setUsbPrinters([]);
+    try {
+      const api = getApi();
+      if (api?.discoverUsbPrinters) {
+        const results = await api.discoverUsbPrinters();
+        setUsbPrinters(results || []);
+        if (!results || results.length === 0) {
+          showSuccessMessage('USB scan complete: No USB printers detected');
+        } else {
+          showSuccessMessage(`USB scan complete: Found ${results.length} printer(s)`);
+        }
+      } else {
+        setError('USB printer discovery is not available in this build.');
+      }
+    } catch (err: any) {
+      setError(err?.message || err || 'USB printer discovery failed');
+    } finally {
+      setScanningUsb(false);
+    }
+  };
+
   const handleAddPrinter = () => {
     let defaultIpPrefix = '';
     if (serverIp && serverIp !== '...' && serverIp !== '127.0.0.1') {
@@ -106,6 +133,7 @@ export function PrintersPage() {
       ip: defaultIpPrefix, // Start blank or with detected active LAN subnet prefix
       port: 9100,
       width: '80mm',
+      connectionType: 'network',
     };
     const updated = [...printers, newPrinter];
     setPrinters(updated);
@@ -124,12 +152,32 @@ export function PrintersPage() {
       ip,
       port: 9100,
       width: '80mm',
+      connectionType: 'network',
     };
     const updated = [...printers, newPrinter];
     setPrinters(updated);
     savePrintersConfig(updated);
     // Remove from scanned list
     setScannedIps(scannedIps.filter((item) => item !== ip));
+  };
+
+  const handleQuickAddUsb = (usb: UsbPrinterInfo) => {
+    if (printers.some((p) => p.connectionType === 'usb' && p.usbPortName === usb.portName)) {
+      setError(`USB printer on ${usb.portName} is already configured.`);
+      return;
+    }
+    const newPrinter: PrinterConfig = {
+      name: usb.name,
+      ip: '',
+      port: 0,
+      width: '80mm',
+      connectionType: 'usb',
+      usbPortName: usb.portName,
+    };
+    const updated = [...printers, newPrinter];
+    setPrinters(updated);
+    savePrintersConfig(updated);
+    setUsbPrinters(usbPrinters.filter((item) => item.portName !== usb.portName));
   };
 
   const handleRemovePrinter = (index: number) => {
@@ -151,20 +199,32 @@ export function PrintersPage() {
     savePrintersConfig(printers);
   };
 
-  const handleTestPrint = async (printer: PrinterConfig) => {
-    if (printingIp) return;
-    setPrintingIp(printer.ip);
+  const printerKey = (printer: PrinterConfig, index: number) =>
+    printer.connectionType === 'usb'
+      ? `usb:${printer.usbPortName || printer.name}:${index}`
+      : `net:${printer.ip}:${index}`;
+
+  const handleTestPrint = async (printer: PrinterConfig, index: number) => {
+    if (printingKey) return;
+    const key = printerKey(printer, index);
+    setPrintingKey(key);
     setError(null);
     try {
       const api = getApi();
       if (api) {
-        await api.printReceipt(printer.ip, printer.port, printer.width);
+        await api.printReceipt({
+          width: printer.width,
+          connectionType: printer.connectionType === 'usb' ? 'usb' : 'network',
+          ip: printer.ip || undefined,
+          port: printer.port || undefined,
+          name: printer.name,
+        });
         showSuccessMessage(`Test receipt sent to ${printer.name}`);
       }
     } catch (err: any) {
-      setError(`Print failed: ${err || err.message}`);
+      setError(`Print failed: ${err?.message || err}`);
     } finally {
-      setPrintingIp(null);
+      setPrintingKey(null);
     }
   };
 
@@ -180,7 +240,7 @@ export function PrintersPage() {
               Thermal Printers
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Discover and connect POS thermal printer hardware over local network (LAN)
+              Discover USB-attached printers and LAN ESC/POS devices on port 9100
             </p>
           </div>
           
@@ -198,6 +258,91 @@ export function PrintersPage() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* USB Scanner Card */}
+        <div className="rounded-xl border border-slate-200 bg-surface-card p-6 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <Usb className="h-4.5 w-4.5 text-primary" />
+                USB Auto-Discovery
+              </h2>
+              <p className="text-xs text-slate-500">
+                Detect printers plugged directly into this machine (Windows USB00x ports or CUPS usb:// devices).
+              </p>
+            </div>
+            
+            <button
+              onClick={handleUsbScan}
+              disabled={scanningUsb}
+              className="flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-hover disabled:bg-primary/50 text-white px-4 py-2 text-sm font-medium transition-colors shadow-md shadow-primary/10"
+            >
+              {scanningUsb ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Scanning USB...
+                </>
+              ) : (
+                <>
+                  <Usb className="h-4 w-4" />
+                  Detect USB Printers
+                </>
+              )}
+            </button>
+          </div>
+
+          {scanningUsb && (
+            <div className="flex items-center justify-center p-8 rounded-lg bg-surface-muted border border-slate-200">
+              <div className="flex flex-col items-center gap-2 text-slate-500">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="text-sm font-medium">Querying OS printer list...</span>
+                <span className="text-xs text-slate-400">Filtering for USB-connected devices</span>
+              </div>
+            </div>
+          )}
+
+          {!scanningUsb && usbPrinters.length > 0 && (
+            <div className="space-y-2 animate-fade-in">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Discovered USB Printers
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {usbPrinters.map((usb) => (
+                  <div
+                    key={usb.portName}
+                    className="flex items-center justify-between rounded-lg border border-slate-200 bg-surface-muted/50 px-4 py-3 hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-8 w-8 rounded bg-primary-light text-primary flex items-center justify-center shrink-0">
+                        <Usb className="h-4.5 w-4.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-800 truncate">{usb.name}</p>
+                        <p className="text-xs text-slate-500 font-mono truncate">{usb.portName}</p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleQuickAddUsb(usb)}
+                      className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover bg-primary/10 hover:bg-primary/20 px-2.5 py-1.5 rounded transition-all shrink-0 ml-2"
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Setup
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!scanningUsb && usbPrinters.length === 0 && !loading && (
+            <div className="rounded-lg bg-surface-muted border border-slate-200 p-4 text-center">
+              <span className="text-xs text-slate-400">
+                Plug in a USB printer, install its OS driver if needed, then click Detect USB Printers.
+              </span>
+            </div>
+          )}
         </div>
 
         {/* LAN Scanner Card */}
@@ -311,11 +456,13 @@ export function PrintersPage() {
             <div className="rounded-xl border border-slate-200 bg-surface-muted/50 p-8 text-center text-slate-400">
               <Printer className="h-10 w-10 mx-auto text-slate-300 mb-3" />
               <p className="text-sm font-medium">No printers configured yet</p>
-              <p className="text-xs text-slate-500 mt-1">Scan the subnet or click Add Manually to set up a new thermal printer.</p>
+              <p className="text-xs text-slate-500 mt-1">Detect USB, scan the subnet, or click Add Manually to set up a printer.</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {printers.map((printer, index) => (
+              {printers.map((printer, index) => {
+                const isUsb = printer.connectionType === 'usb';
+                return (
                 <div
                   key={index}
                   className="rounded-xl border border-slate-200 bg-surface-card p-5 space-y-4 hover:border-primary/30 shadow-sm transition-colors"
@@ -336,29 +483,41 @@ export function PrintersPage() {
                         />
                       </div>
                       
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">IP Address</label>
-                        <input
-                          type="text"
-                          value={printer.ip}
-                          onChange={(e) => handleUpdateField(index, 'ip', e.target.value)}
-                          onBlur={handleFieldBlur}
-                          placeholder="e.g. 192.168.1.100"
-                          className="w-full text-sm font-mono rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
+                      {isUsb ? (
+                        <div className="space-y-1 col-span-2">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase">USB Port</label>
+                          <div className="flex items-center gap-2 w-full text-sm font-mono rounded bg-surface-muted border border-slate-200 px-3 py-1.5 text-slate-700">
+                            <Usb className="h-3.5 w-3.5 text-primary shrink-0" />
+                            <span className="truncate">{printer.usbPortName || 'USB'}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">IP Address</label>
+                            <input
+                              type="text"
+                              value={printer.ip}
+                              onChange={(e) => handleUpdateField(index, 'ip', e.target.value)}
+                              onBlur={handleFieldBlur}
+                              placeholder="e.g. 192.168.1.100"
+                              className="w-full text-sm font-mono rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">TCP Port</label>
-                        <input
-                          type="number"
-                          value={printer.port || ''}
-                          onChange={(e) => handleUpdateField(index, 'port', e.target.value)}
-                          onBlur={handleFieldBlur}
-                          placeholder="9100"
-                          className="w-full text-sm font-mono rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">TCP Port</label>
+                            <input
+                              type="number"
+                              value={printer.port || ''}
+                              onChange={(e) => handleUpdateField(index, 'port', e.target.value)}
+                              onBlur={handleFieldBlur}
+                              placeholder="9100"
+                              className="w-full text-sm font-mono rounded bg-surface-card border border-slate-200 px-3 py-1.5 text-slate-800 focus:outline-none focus:border-primary transition-colors focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                        </>
+                      )}
 
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase">Paper Width</label>
@@ -384,11 +543,12 @@ export function PrintersPage() {
                     {/* Actions */}
                     <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end pt-2 md:pt-0">
                       <button
-                        onClick={() => handleTestPrint(printer)}
-                        disabled={printingIp !== null}
+                        onClick={() => handleTestPrint(printer, index)}
+                        disabled={printingKey !== null}
                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded bg-primary-light text-primary hover:bg-primary/15 disabled:opacity-50 transition-all border border-primary/25"
+                        title="Send test receipt"
                       >
-                        {printingIp === printer.ip ? (
+                        {printingKey === printerKey(printer, index) ? (
                           <>
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             Printing...
@@ -412,7 +572,8 @@ export function PrintersPage() {
 
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </div>
@@ -421,11 +582,12 @@ export function PrintersPage() {
         <div className="rounded-xl border border-slate-200 bg-surface-muted/50 p-5 space-y-3">
           <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
             <HelpCircle className="h-4 w-4 text-primary" />
-            Thermal Printing Subnet Info
+            Printer Discovery Info
           </h2>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Network printers connect directly to a router using Ethernet or Wi-Fi. They listen for raw stream data on TCP Port <b>9100</b>.
-            By scanning, the app connects to each IP address on your LAN subnet (e.g. 192.168.1.1 through 192.168.1.254) to see if port 9100 responds.
+            <b>USB</b> and <b>Network</b> printers both print the same ESC/POS receipt.
+            USB jobs go through the OS queue as RAW data (Windows spooler / CUPS <code className="text-[11px]">lp -o raw</code>).
+            Network jobs send the same bytes over TCP port <b>9100</b>.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] text-slate-500 pt-1">
             <div className="border border-slate-200 rounded p-2.5 bg-surface-card">

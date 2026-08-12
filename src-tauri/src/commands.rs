@@ -174,6 +174,11 @@ pub async fn scan_network_printers() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+pub fn discover_usb_printers() -> Result<Vec<crate::printers::UsbPrinterInfo>, String> {
+    crate::printers::discover_usb_printers()
+}
+
+#[tauri::command]
 pub fn get_printers_config(app_handle: tauri::AppHandle) -> Result<Vec<crate::printers::PrinterConfig>, String> {
     crate::printers::load_printers(&app_handle)
 }
@@ -186,8 +191,22 @@ pub fn save_printers_config(
     crate::printers::save_printers(&app_handle, printers)
 }
 
-#[tauri::command]
-pub async fn print_receipt(ip: String, port: u16, width: String) -> Result<(), String> {
-    crate::printers::print_escpos_receipt(&ip, port, &width).await
+#[tauri::command(rename_all = "camelCase")]
+pub async fn print_receipt(
+    width: String,
+    connection_type: Option<String>,
+    ip: Option<String>,
+    port: Option<u16>,
+    name: Option<String>,
+) -> Result<(), String> {
+    let connection = connection_type.unwrap_or_else(|| "network".to_string());
+    crate::printers::print_escpos_receipt(
+        &width,
+        &connection,
+        ip.as_deref(),
+        port,
+        name.as_deref(),
+    )
+    .await
 }
 

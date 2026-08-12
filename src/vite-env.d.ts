@@ -14,6 +14,8 @@ import type {
   TaskListQuery,
   UpdateTaskInput,
   PrinterConfig,
+  UsbPrinterInfo,
+  PrintReceiptArgs,
 } from './shared/types';
 
 export type DesktopAPI = {
@@ -24,9 +26,10 @@ export type DesktopAPI = {
   updateTask: (input: UpdateTaskInput) => Promise<{ task?: Task; error?: string }>;
   deleteTask: (id: string) => Promise<{ success: boolean; error?: string }>;
   scanNetworkPrinters: () => Promise<string[]>;
+  discoverUsbPrinters: () => Promise<UsbPrinterInfo[]>;
   getPrintersConfig: () => Promise<PrinterConfig[]>;
   savePrintersConfig: (printers: PrinterConfig[]) => Promise<void>;
-  printReceipt: (ip: string, port: number, width: string) => Promise<void>;
+  printReceipt: (args: PrintReceiptArgs) => Promise<void>;
   onStatusChanged: (cb: () => void) => () => void;
   onLogEntry: (cb: (entry: LogEntry) => void) => () => void;
   onTaskUpdated: (cb: (data: { task: Task }) => void) => () => void;

@@ -12,6 +12,8 @@ import type {
   TaskListQuery,
   TaskListPage,
   PrinterConfig,
+  UsbPrinterInfo,
+  PrintReceiptArgs,
 } from '../../shared/types';
 import { UI_TASK_PAGE_SIZE } from '../../shared/types';
 import { generateId, nowISO, createLogEntry } from '../../shared/utils';
@@ -179,6 +181,17 @@ export const browserMockAPI = {
     return [`${subnet}.55`, `${subnet}.89`].filter((ip) => ip !== host);
   },
 
+  discoverUsbPrinters: async (): Promise<UsbPrinterInfo[]> => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return [
+      {
+        name: 'HP LaserJet Pro',
+        portName: 'USB001',
+        status: '0',
+      },
+    ];
+  },
+
   getPrintersConfig: async (): Promise<PrinterConfig[]> => {
     const saved = localStorage.getItem('mock_printers');
     if (saved) {
@@ -192,8 +205,12 @@ export const browserMockAPI = {
     pushLog(createLogEntry('info', 'Printer configurations saved', { count: printers.length }));
   },
 
-  printReceipt: async (ip: string, port: number, width: string): Promise<void> => {
-    pushLog(createLogEntry('success', `Receipt printed to ${ip}:${port} (${width})`, { ip, port, width }));
+  printReceipt: async (args: PrintReceiptArgs): Promise<void> => {
+    pushLog(
+      createLogEntry('success', `Receipt printed (${args.connectionType ?? 'network'})`, {
+        ...args,
+      }),
+    );
   },
 
   onLogEntry: (cb: (entry: LogEntry) => void) => {

@@ -63,6 +63,7 @@ pub fn run() {
             commands::delete_task,
             commands::get_devices,
             commands::scan_network_printers,
+            commands::discover_usb_printers,
             commands::get_printers_config,
             commands::save_printers_config,
             commands::print_receipt,

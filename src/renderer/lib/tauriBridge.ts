@@ -14,6 +14,8 @@ import type {
   TaskListQuery,
   UpdateTaskInput,
   PrinterConfig,
+  UsbPrinterInfo,
+  PrintReceiptArgs,
 } from '../../shared/types';
 
 type DesktopAPI = {
@@ -28,9 +30,10 @@ type DesktopAPI = {
   onTaskUpdated: (cb: (data: { task: Task }) => void) => () => void;
   onDeviceChanged: (cb: (data: { devices: Device[] }) => void) => () => void;
   scanNetworkPrinters: () => Promise<string[]>;
+  discoverUsbPrinters: () => Promise<UsbPrinterInfo[]>;
   getPrintersConfig: () => Promise<PrinterConfig[]>;
   savePrintersConfig: (printers: PrinterConfig[]) => Promise<void>;
-  printReceipt: (ip: string, port: number, width: string) => Promise<void>;
+  printReceipt: (args: PrintReceiptArgs) => Promise<void>;
 };
 
 function subscribe<T>(event: string, cb: (payload: T) => void): () => void {
@@ -60,9 +63,17 @@ export function installTauriBridge(): void {
     updateTask: (input) => invoke('update_task', { input }),
     deleteTask: (id) => invoke('delete_task', { id }),
     scanNetworkPrinters: () => invoke<string[]>('scan_network_printers'),
+    discoverUsbPrinters: () => invoke<UsbPrinterInfo[]>('discover_usb_printers'),
     getPrintersConfig: () => invoke<PrinterConfig[]>('get_printers_config'),
     savePrintersConfig: (printers: PrinterConfig[]) => invoke('save_printers_config', { printers }),
-    printReceipt: (ip: string, port: number, width: string) => invoke('print_receipt', { ip, port, width }),
+    printReceipt: (args: PrintReceiptArgs) =>
+      invoke('print_receipt', {
+        width: args.width,
+        connectionType: args.connectionType ?? 'network',
+        ip: args.ip ?? null,
+        port: args.port ?? null,
+        name: args.name ?? null,
+      }),
     onStatusChanged: (cb) => subscribe<null>('status:changed', () => cb()),
     onLogEntry: (cb) => subscribe<LogEntry>('log:entry', cb),
     onTaskUpdated: (cb) => subscribe<{ task: Task }>('tasks:updated', cb),

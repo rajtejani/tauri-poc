@@ -173,5 +173,25 @@ export interface PrinterConfig {
   ip: string;
   port: number;
   width: '58mm' | '80mm' | '110mm';
+  /** Defaults to network when omitted (legacy configs). */
+  connectionType?: 'network' | 'usb';
+  /** Windows USB port (USB001) or CUPS usb:// URI on macOS/Linux. */
+  usbPortName?: string;
+}
+
+export interface PrintReceiptArgs {
+  width: string;
+  connectionType?: 'network' | 'usb';
+  ip?: string;
+  port?: number;
+  /** OS printer queue name — required for USB printing. */
+  name?: string;
+}
+
+/** OS-discovered USB-attached printer (Windows Get-Printer / CUPS lpstat). */
+export interface UsbPrinterInfo {
+  name: string;
+  portName: string;
+  status: string;
 }
 
