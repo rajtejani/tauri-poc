@@ -8,6 +8,7 @@ import {
   Wifi,
   Layers,
   Printer,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAppStore } from '../store/appStore';
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/tasks', label: 'Tasks', icon: ListTodo, end: false },
   { to: '/devices', label: 'Devices', icon: Monitor, end: false },
   { to: '/printers', label: 'Printers', icon: Printer, end: false },
+  { to: '/print-test', label: 'Print Test', icon: FlaskConical, end: false },
   { to: '/logs', label: 'Event Log', icon: Activity, end: false },
 ];
 

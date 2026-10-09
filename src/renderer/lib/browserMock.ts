@@ -14,6 +14,8 @@ import type {
   PrinterConfig,
   UsbPrinterInfo,
   PrintReceiptArgs,
+  PrintRasterArgs,
+  SelftestPrintArgs,
 } from '../../shared/types';
 import { UI_TASK_PAGE_SIZE } from '../../shared/types';
 import { generateId, nowISO, createLogEntry } from '../../shared/utils';
@@ -209,6 +211,28 @@ export const browserMockAPI = {
     pushLog(
       createLogEntry('success', `Receipt printed (${args.connectionType ?? 'network'})`, {
         ...args,
+      }),
+    );
+  },
+
+  printRaster: async (args: PrintRasterArgs): Promise<void> => {
+    pushLog(
+      createLogEntry('success', `Raster print (${args.connectionType ?? 'network'})`, {
+        mode: args.mode ?? 'gsv0',
+        widthDots: args.widthDots,
+        height: args.height,
+        byteLength: args.rows.length,
+        name: args.name,
+        ip: args.ip,
+      }),
+    );
+  },
+
+  printSelftest: async (args: SelftestPrintArgs): Promise<void> => {
+    pushLog(
+      createLogEntry('success', `Printer self-test (${args.connectionType ?? 'network'})`, {
+        name: args.name,
+        ip: args.ip,
       }),
     );
   },

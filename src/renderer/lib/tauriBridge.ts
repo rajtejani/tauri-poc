@@ -16,6 +16,8 @@ import type {
   PrinterConfig,
   UsbPrinterInfo,
   PrintReceiptArgs,
+  PrintRasterArgs,
+  SelftestPrintArgs,
 } from '../../shared/types';
 
 type DesktopAPI = {
@@ -34,6 +36,8 @@ type DesktopAPI = {
   getPrintersConfig: () => Promise<PrinterConfig[]>;
   savePrintersConfig: (printers: PrinterConfig[]) => Promise<void>;
   printReceipt: (args: PrintReceiptArgs) => Promise<void>;
+  printRaster: (args: PrintRasterArgs) => Promise<void>;
+  printSelftest: (args: SelftestPrintArgs) => Promise<void>;
 };
 
 function subscribe<T>(event: string, cb: (payload: T) => void): () => void {
@@ -69,6 +73,24 @@ export function installTauriBridge(): void {
     printReceipt: (args: PrintReceiptArgs) =>
       invoke('print_receipt', {
         width: args.width,
+        connectionType: args.connectionType ?? 'network',
+        ip: args.ip ?? null,
+        port: args.port ?? null,
+        name: args.name ?? null,
+      }),
+    printRaster: (args: PrintRasterArgs) =>
+      invoke('print_raster', {
+        widthDots: args.widthDots,
+        height: args.height,
+        rows: args.rows,
+        mode: args.mode ?? 'escstar',
+        connectionType: args.connectionType ?? 'network',
+        ip: args.ip ?? null,
+        port: args.port ?? null,
+        name: args.name ?? null,
+      }),
+    printSelftest: (args: SelftestPrintArgs) =>
+      invoke('print_selftest', {
         connectionType: args.connectionType ?? 'network',
         ip: args.ip ?? null,
         port: args.port ?? null,

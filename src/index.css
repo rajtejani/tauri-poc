@@ -1,3 +1,4 @@
+/* Receipt / print-test fonts: bundled via @fontsource in main.tsx; system Indic fallbacks below. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

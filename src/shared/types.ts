@@ -195,3 +195,73 @@ export interface UsbPrinterInfo {
   status: string;
 }
 
+/** Script / font family hint for a receipt line (canvas rendering). */
+export type ReceiptScript =
+  | 'latin'
+  | 'devanagari'
+  | 'bengali'
+  | 'gujarati'
+  | 'gurmukhi'
+  | 'tamil'
+  | 'telugu'
+  | 'kannada'
+  | 'malayalam'
+  | 'oriya';
+
+export type ReceiptAlign = 'left' | 'center' | 'right';
+
+export interface ReceiptLine {
+  id: string;
+  text: string;
+  script: ReceiptScript;
+  sizePx: number;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strikethrough: boolean;
+  align: ReceiptAlign;
+  /** Blank spacer line (ignores text). */
+  blank?: boolean;
+  /** When true, Gujarati runs add gujaratiSizeDelta to sizePx (Latin unchanged). */
+  gujaratiPlusOne?: boolean;
+  /** Extra px for Gujarati runs when gujaratiPlusOne is true (default 1). */
+  gujaratiSizeDelta?: number;
+}
+
+export interface ReceiptTemplate {
+  dotWidth: number;
+  paddingPx: number;
+  lineGapPx: number;
+  lines: ReceiptLine[];
+}
+
+/** ESC/POS raster encoding (GS v 0 vs legacy ESC * bit image). */
+export type RasterMode = 'gsv0' | 'escstar';
+
+/** Monochrome raster rows: each byte is 8 horizontal dots, MSB = leftmost, 1 = black. */
+export interface PrintRasterArgs {
+  widthDots: number;
+  height: number;
+  /** Flat packed rows: height * ceil(widthDots/8) bytes, row-major. */
+  rows: number[];
+  mode?: RasterMode;
+  connectionType?: 'network' | 'usb';
+  ip?: string;
+  port?: number;
+  name?: string;
+}
+
+export interface SelftestPrintArgs {
+  connectionType?: 'network' | 'usb';
+  ip?: string;
+  port?: number;
+  name?: string;
+}
+
+/** Paper width to dot width at 203 dpi (8 dots/mm). */
+export const PAPER_WIDTH_DOTS: Record<PrinterConfig['width'], number> = {
+  '58mm': 384,
+  '80mm': 576,
+  '110mm': 832,
+};
+

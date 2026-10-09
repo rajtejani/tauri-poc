@@ -6,6 +6,7 @@ import { TasksPage } from './renderer/pages/TasksPage';
 import { DevicesPage } from './renderer/pages/DevicesPage';
 import { LogsPage } from './renderer/pages/LogsPage';
 import { PrintersPage } from './renderer/pages/PrintersPage';
+import { PrintTestPage } from './renderer/pages/PrintTestPage';
 import { useAppBootstrap } from './renderer/hooks/useAppBootstrap';
 import { UpdateToast } from './renderer/components/UpdateToast';
 
@@ -21,6 +22,7 @@ function AppLayout() {
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/devices" element={<DevicesPage />} />
           <Route path="/printers" element={<PrintersPage />} />
+          <Route path="/print-test" element={<PrintTestPage />} />
           <Route path="/logs" element={<LogsPage />} />
         </Routes>
       </main>

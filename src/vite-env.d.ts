@@ -16,6 +16,8 @@ import type {
   PrinterConfig,
   UsbPrinterInfo,
   PrintReceiptArgs,
+  PrintRasterArgs,
+  SelftestPrintArgs,
 } from './shared/types';
 
 export type DesktopAPI = {
@@ -30,6 +32,8 @@ export type DesktopAPI = {
   getPrintersConfig: () => Promise<PrinterConfig[]>;
   savePrintersConfig: (printers: PrinterConfig[]) => Promise<void>;
   printReceipt: (args: PrintReceiptArgs) => Promise<void>;
+  printRaster: (args: PrintRasterArgs) => Promise<void>;
+  printSelftest: (args: SelftestPrintArgs) => Promise<void>;
   onStatusChanged: (cb: () => void) => () => void;
   onLogEntry: (cb: (entry: LogEntry) => void) => () => void;
   onTaskUpdated: (cb: (data: { task: Task }) => void) => () => void;

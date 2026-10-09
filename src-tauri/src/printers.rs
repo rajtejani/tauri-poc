@@ -580,15 +580,37 @@ $bytes = [System.IO.File]::ReadAllBytes($filePath)
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn send_raw_cups(printer_name: &str, file_path: &std::path::Path) -> Result<(), String> {
+    let path_str = file_path
+        .to_str()
+        .ok_or_else(|| "Temp receipt path is not valid UTF-8".to_string())?;
+
+    // Prefer `lpr -l` (literal) so CUPS does not translate CR/LF or filter binary ESC/POS.
+    let lpr = Command::new("lpr")
+        .args(["-P", printer_name, "-l", path_str])
+        .output();
+
+    match lpr {
+        Ok(output) if output.status.success() => return Ok(()),
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if !stderr.is_empty() {
+                eprintln!("lpr -l failed, falling back to lp raw: {stderr}");
+            }
+        }
+        Err(e) => {
+            eprintln!("lpr not available ({e}), falling back to lp raw");
+        }
+    }
+
     let output = Command::new("lp")
         .args([
             "-d",
             printer_name,
             "-o",
             "raw",
-            file_path
-                .to_str()
-                .ok_or_else(|| "Temp receipt path is not valid UTF-8".to_string())?,
+            "-o",
+            "document-format=application/vnd.cups-raw",
+            path_str,
         ])
         .output()
         .map_err(|e| format!("Failed to run lp: {e}"))?;
@@ -603,4 +625,246 @@ fn send_raw_cups(printer_name: &str, file_path: &std::path::Path) -> Result<(), 
     }
 
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RasterCommand {
+    GsV0,
+    EscStar,
+}
+
+pub fn parse_raster_mode(mode: Option<&str>) -> RasterCommand {
+    match mode.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+        Some("escstar") | Some("esc_star") | Some("esc-*") => RasterCommand::EscStar,
+        _ => RasterCommand::GsV0,
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RasterPayload {
+    pub width_dots: u32,
+    pub height: u32,
+    /// Row-major packed 1bpp raster (MSB = left dot, 1 = black).
+    pub rows: Vec<u8>,
+}
+
+fn validate_raster_payload(payload: &RasterPayload) -> Result<usize, String> {
+    let width_dots = payload.width_dots;
+    let height = payload.height;
+
+    if width_dots == 0 || height == 0 {
+        return Err("Raster width and height must be greater than zero".to_string());
+    }
+
+    let row_bytes = ((width_dots + 7) / 8) as usize;
+    let expected_len = row_bytes * height as usize;
+    if payload.rows.len() != expected_len {
+        return Err(format!(
+            "Raster data length mismatch: expected {expected_len} bytes, got {}",
+            payload.rows.len()
+        ));
+    }
+    Ok(row_bytes)
+}
+
+fn raster_bit(rows: &[u8], row_bytes: usize, width_dots: u32, x: u32, y: u32) -> bool {
+    if x >= width_dots {
+        return false;
+    }
+    let byte_index = y as usize * row_bytes + (x as usize >> 3);
+    if byte_index >= rows.len() {
+        return false;
+    }
+    let bit_pos = 7 - (x as usize & 7);
+    (rows[byte_index] >> bit_pos) & 1 == 1
+}
+
+/// Build ESC/POS bytes for a monochrome raster (GS v 0), banded to 255 rows per command.
+pub fn build_escpos_raster_bytes(payload: &RasterPayload) -> Result<Vec<u8>, String> {
+    let height = payload.height;
+    let row_bytes = validate_raster_payload(payload)?;
+
+    let mut buf = Vec::new();
+    buf.extend_from_slice(b"\x1b@");
+
+    let max_band: u32 = 255;
+    let mut y_offset: u32 = 0;
+
+    while y_offset < height {
+        let band_height = std::cmp::min(max_band, height - y_offset);
+        let start = y_offset as usize * row_bytes;
+        let end = start + band_height as usize * row_bytes;
+        let band = &payload.rows[start..end];
+
+        // GS v 0 m — m=0 normal
+        buf.push(0x1d);
+        buf.push(b'v');
+        buf.push(0x30);
+        buf.push(0x00);
+
+        let x = row_bytes as u16;
+        let y = band_height as u16;
+        buf.push((x & 0xff) as u8);
+        buf.push((x >> 8) as u8);
+        buf.push((y & 0xff) as u8);
+        buf.push((y >> 8) as u8);
+        buf.extend_from_slice(band);
+
+        y_offset += band_height;
+    }
+
+    append_feed_and_cut(&mut buf);
+    Ok(buf)
+}
+
+fn append_feed_and_cut(buf: &mut Vec<u8>) {
+    buf.extend_from_slice(b"\n\n\n\n\x1dVB\x00");
+}
+
+/// ESC * mode 33 (24-dot double-density) — widely supported on budget ESC/POS printers.
+pub fn build_escpos_raster_escstar(payload: &RasterPayload) -> Result<Vec<u8>, String> {
+    let width_dots = payload.width_dots;
+    let height = payload.height;
+    let row_bytes = validate_raster_payload(payload)?;
+
+    let mut buf = Vec::new();
+    buf.extend_from_slice(b"\x1b@");
+    // Line spacing = 24 dots so each LF after a stripe advances exactly one stripe.
+    buf.extend_from_slice(b"\x1b3\x18");
+
+    let stripe_h: u32 = 24;
+    let mut y: u32 = 0;
+    while y < height {
+        let stripe_rows = std::cmp::min(stripe_h, height - y);
+        // ESC * m nL nH — m=33 (24-dot double-density)
+        buf.push(0x1b);
+        buf.push(b'*');
+        buf.push(33);
+        let n = width_dots as u16;
+        buf.push((n & 0xff) as u8);
+        buf.push((n >> 8) as u8);
+
+        for x in 0..width_dots {
+            for byte_idx in 0..3u32 {
+                let mut b = 0u8;
+                for bit in 0..8u32 {
+                    let r = byte_idx * 8 + bit;
+                    if r < stripe_rows && raster_bit(&payload.rows, row_bytes, width_dots, x, y + r)
+                    {
+                        b |= 1 << (7 - bit);
+                    }
+                }
+                buf.push(b);
+            }
+        }
+        buf.push(b'\n');
+        y += stripe_rows;
+    }
+
+    buf.extend_from_slice(b"\x1b2");
+    append_feed_and_cut(&mut buf);
+    Ok(buf)
+}
+
+pub fn build_raster_bytes(payload: &RasterPayload, mode: RasterCommand) -> Result<Vec<u8>, String> {
+    match mode {
+        RasterCommand::GsV0 => build_escpos_raster_bytes(payload),
+        RasterCommand::EscStar => build_escpos_raster_escstar(payload),
+    }
+}
+
+fn make_filled_square_raster(size: u32) -> RasterPayload {
+    let row_bytes = ((size + 7) / 8) as usize;
+    let mut rows = vec![0u8; row_bytes * size as usize];
+    for y in 0..size {
+        for x in 0..size {
+            let byte_index = y as usize * row_bytes + (x as usize >> 3);
+            let bit_pos = 7 - (x as usize & 7);
+            rows[byte_index] |= 1 << bit_pos;
+        }
+    }
+    RasterPayload {
+        width_dots: size,
+        height: size,
+        rows,
+    }
+}
+
+const FEED_AND_CUT_LEN: usize = 8;
+
+fn raster_body_without_init_and_cut(full: &[u8], trailing_extra: usize) -> &[u8] {
+    let start = if full.len() >= 2 && full[0] == 0x1b && full[1] == b'@' {
+        2
+    } else {
+        0
+    };
+    let end = full.len().saturating_sub(FEED_AND_CUT_LEN + trailing_extra);
+    &full[start..end.max(start)]
+}
+
+/// Small diagnostic slip: ASCII lines + GS v 0 square + ESC * square.
+pub fn build_selftest_bytes() -> Result<Vec<u8>, String> {
+    let square = make_filled_square_raster(80);
+    let mut buf = Vec::new();
+    buf.extend_from_slice(b"\x1b@");
+    buf.extend_from_slice(b"\x1ba\x01");
+    buf.extend_from_slice(b"=== PRINTER SELF TEST ===\n");
+    buf.extend_from_slice(b"\x1ba\x00");
+    buf.extend_from_slice(b"ASCII: SELF TEST 123 ABC\n");
+    buf.extend_from_slice(b"If you see garbage below, try ESC * mode.\n\n");
+    buf.extend_from_slice(b"--- GS v 0 square (80x80) ---\n");
+    let gsv0 = build_escpos_raster_bytes(&square)?;
+    buf.extend_from_slice(raster_body_without_init_and_cut(&gsv0, 0));
+    buf.extend_from_slice(b"\n--- ESC * square (80x80) ---\n");
+    let esc = build_escpos_raster_escstar(&square)?;
+    // ESC * path ends with ESC 2 before feed/cut.
+    buf.extend_from_slice(raster_body_without_init_and_cut(&esc, 2));
+    append_feed_and_cut(&mut buf);
+    Ok(buf)
+}
+
+async fn send_raw_escpos(
+    buf: &[u8],
+    connection_type: &str,
+    ip: Option<&str>,
+    port: Option<u16>,
+    printer_name: Option<&str>,
+) -> Result<(), String> {
+    if connection_type.eq_ignore_ascii_case("usb") {
+        let name = printer_name
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "USB printer name is required for printing".to_string())?;
+        return send_raw_to_usb_printer(name, buf).await;
+    }
+
+    let ip = ip
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "Printer IP is required for network printing".to_string())?;
+    let port = port.unwrap_or(9100);
+    send_raw_to_network_printer(ip, port, buf).await
+}
+
+pub async fn print_escpos_raster(
+    payload: RasterPayload,
+    mode: RasterCommand,
+    connection_type: &str,
+    ip: Option<&str>,
+    port: Option<u16>,
+    printer_name: Option<&str>,
+) -> Result<(), String> {
+    let buf = build_raster_bytes(&payload, mode)?;
+    send_raw_escpos(&buf, connection_type, ip, port, printer_name).await
+}
+
+pub async fn print_selftest(
+    connection_type: &str,
+    ip: Option<&str>,
+    port: Option<u16>,
+    printer_name: Option<&str>,
+) -> Result<(), String> {
+    let buf = build_selftest_bytes()?;
+    send_raw_escpos(&buf, connection_type, ip, port, printer_name).await
 }

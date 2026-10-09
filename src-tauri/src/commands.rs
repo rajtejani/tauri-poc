@@ -210,3 +210,49 @@ pub async fn print_receipt(
     .await
 }
 
+#[tauri::command(rename_all = "camelCase")]
+pub async fn print_raster(
+    width_dots: u32,
+    height: u32,
+    rows: Vec<u8>,
+    mode: Option<String>,
+    connection_type: Option<String>,
+    ip: Option<String>,
+    port: Option<u16>,
+    name: Option<String>,
+) -> Result<(), String> {
+    let connection = connection_type.unwrap_or_else(|| "network".to_string());
+    let raster_mode = crate::printers::parse_raster_mode(mode.as_deref());
+    let payload = crate::printers::RasterPayload {
+        width_dots,
+        height,
+        rows,
+    };
+    crate::printers::print_escpos_raster(
+        payload,
+        raster_mode,
+        &connection,
+        ip.as_deref(),
+        port,
+        name.as_deref(),
+    )
+    .await
+}
+
+#[tauri::command(rename_all = "camelCase")]
+pub async fn print_selftest(
+    connection_type: Option<String>,
+    ip: Option<String>,
+    port: Option<u16>,
+    name: Option<String>,
+) -> Result<(), String> {
+    let connection = connection_type.unwrap_or_else(|| "network".to_string());
+    crate::printers::print_selftest(
+        &connection,
+        ip.as_deref(),
+        port,
+        name.as_deref(),
+    )
+    .await
+}
+
